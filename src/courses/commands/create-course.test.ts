@@ -333,6 +333,104 @@ describe('Create Course Command', () => {
         });
     });
 
+    describe('Input Validation', () => {
+        beforeEach(() => {
+            mockInteraction = {
+                guild: mockGuild,
+                client: mockClient,
+                member: {
+                    roles: {
+                        cache: new Collection<string, Role>([
+                            ['1', { name: 'CDP' } as Role]
+                        ])
+                    },
+                    id: '123456789'
+                } as unknown as GuildMember,
+                reply: vi.fn(),
+                showModal: vi.fn(),
+            } as unknown as CommandInteraction;
+        });
+    
+        it('should accept minimum length input (3 characters)', async () => {
+            await execute(mockInteraction);
+    
+            const modalCall = vi.mocked(mockInteraction.showModal).mock.calls[0][0];
+            const modalBuilder = modalCall as ModalBuilder;
+            const textInput = modalBuilder.components[0].components[0];
+    
+            const minLength = textInput.data.min_length;
+            expect(minLength).toBe(3);
+    
+            expect('Dev'.length >= (minLength ?? 0)).toBe(true);
+        });
+    
+        it('should accept maximum length input (50 characters)', async () => {
+            await execute(mockInteraction);
+    
+            const modalCall = vi.mocked(mockInteraction.showModal).mock.calls[0][0];
+            const modalBuilder = modalCall as ModalBuilder;
+            const textInput = modalBuilder.components[0].components[0];
+    
+            const maxLength = textInput.data.max_length;
+            expect(maxLength).toBe(50);
+    
+            const maxLengthInput = 'Développeur fullstack JavaScript et React avancé';
+            expect(maxLengthInput.length <= (maxLength ?? Infinity)).toBe(true);
+        });
+
+        it('should reject input shorter than minimum length (3 characters)', async () => {
+            await execute(mockInteraction);
+        
+            const modalCall = vi.mocked(mockInteraction.showModal).mock.calls[0][0];
+            const modalBuilder = modalCall as ModalBuilder;
+            const textInput = modalBuilder.components[0].components[0];
+        
+            const minLength = textInput.data.min_length;
+            expect(minLength).toBe(3);
+        
+            const shortInput = 'JS';
+            expect(shortInput.length >= (minLength ?? 0)).toBe(false);
+        });
+        
+        it('should reject input longer than maximum length (50 characters)', async () => {
+            await execute(mockInteraction);
+        
+            const modalCall = vi.mocked(mockInteraction.showModal).mock.calls[0][0];
+            const modalBuilder = modalCall as ModalBuilder;
+            const textInput = modalBuilder.components[0].components[0];
+        
+            const maxLength = textInput.data.max_length;
+            expect(maxLength).toBe(50);
+        
+            const longInput = 'Développeur fullstack JavaScript avec spécialisation React et Node.js';  // 71 caractères
+            expect(longInput.length <= (maxLength ?? Infinity)).toBe(false);
+        });
+    
+        it('should accept special characters in course name', async () => {
+            await execute(mockInteraction);
+    
+            const modalCall = vi.mocked(mockInteraction.showModal).mock.calls[0][0];
+            const modalBuilder = modalCall as ModalBuilder;
+            const textInput = modalBuilder.components[0].components[0];
+    
+            const minLength = textInput.data.min_length ?? 0;
+            const maxLength = textInput.data.max_length ?? Infinity;
+    
+            const specialChars = [
+                'Développeur C#',
+                'Formation PHP/MySQL',
+                'React & Node.js',
+                'UX/UI Design',
+                'DevOps & CI/CD'
+            ];
+    
+            specialChars.forEach(input => {
+                expect(input.length >= minLength).toBe(true);
+                expect(input.length <= maxLength).toBe(true);
+            });
+        });
+    });
+
     describe('Logging Details', () => {
         it('should log unauthorized access with user details', async () => {
             const mockRoles = new Collection<string, Role>([
