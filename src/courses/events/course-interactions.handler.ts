@@ -123,7 +123,8 @@ export class CourseInteractionsHandler {
         if (userData) {
             this.courseData.set(userId, {
                 ...userData,
-                isCertified
+                isCertified,
+                selectedStocks: userData.selectedStocks || [] 
             });
         }
     }
@@ -210,7 +211,7 @@ export class CourseInteractionsHandler {
             const courseData = await this.createCourseFromUserData(interaction.user.id);
     
             const stockChannels = await this.getStockChannels(interaction);
-            if (!stockChannels) return; // Arrêt si pas de stocks disponibles
+            if (!stockChannels) return;
     
             const { selectMenu, buttonRow } = this.createStockSelectionMenu(stockChannels);
     
@@ -239,43 +240,51 @@ export class CourseInteractionsHandler {
         if (interaction.customId === 'stock_select') {
             try {
                 const selectedStockId = interaction.values[0];
-                const stockCategoryId = "1344320786722455552";
-
-            logger.debug({
-                selectedStockId,
-                stockCategoryId,
-                availableChannels: interaction.guild?.channels.cache
-                    .filter(channel => channel.parentId === stockCategoryId)
-                    .map(c => ({ id: c.id, name: c.name }))
-            }, 'Debugging stock selection');
-
-            const selectedStock = interaction.guild?.channels.cache.get(selectedStockId);
-
-            if (!selectedStock) {
-                throw new Error('Stock not found');
-            }
-
+                const selectedStock = interaction.guild?.channels.cache.get(selectedStockId);
+    
+                if (!selectedStock) {
+                    await interaction.reply({
+                        content: '❌ Une erreur est survenue.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+    
+                if (!this.courseData.has(interaction.user.id)) {
+                    this.courseData.set(interaction.user.id, {
+                        name: '',
+                        selectedStocks: []
+                    });
+                }
+    
+                const userData = this.courseData.get(interaction.user.id)!;
+                userData.selectedStocks = userData.selectedStocks || [];
+    
+                if (userData.selectedStocks.includes(selectedStock.name)) {
+                    await interaction.update({
+                        content: `❌ Le stock "${selectedStock.name}" a déjà été sélectionné.`,
+                        components: interaction.message.components
+                    });
+                    return;
+                }
+    
+                // Ajouter le nouveau stock
+                userData.selectedStocks.push(selectedStock.name);
+                this.courseData.set(interaction.user.id, userData);
+    
                 const validateButton = new ButtonBuilder()
                     .setCustomId('validate_stock')
                     .setLabel('Valider')
                     .setStyle(ButtonStyle.Primary);
-
+    
                 const addMoreButton = new ButtonBuilder()
                     .setCustomId('add_more_stock')
                     .setLabel('Ajouter un autre post')
                     .setStyle(ButtonStyle.Secondary);
-
+    
                 const buttonRow = new ActionRowBuilder<ButtonBuilder>()
                     .addComponents(addMoreButton, validateButton);
-        
-                    const userData = this.courseData.get(interaction.user.id);
-                if (userData) {
-                    this.courseData.set(interaction.user.id, {
-                        ...userData,
-                        selectedStocks: [...(userData.selectedStocks || []), selectedStock.name]
-                    });
-                }
-                    
+    
                 await interaction.update({
                     content: `✅ Channel du stock sélectionné : ${selectedStock.name}`,
                     components: [buttonRow]
@@ -301,6 +310,9 @@ export class CourseInteractionsHandler {
             if (!stockChannels || stockChannels.size === 0) {
                 throw new Error('No stock channels available');
             }
+
+            const userData = this.courseData.get(interaction.user.id);
+            const selectedStocks = userData?.selectedStocks?.join(', ') || 'undefined';
     
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('stock_select')
@@ -326,7 +338,7 @@ export class CourseInteractionsHandler {
                 .addComponents(validateButton);
     
             await interaction.update({
-                content: `Posts déjà sélectionnés : ${this.courseData.get(interaction.user.id)?.selectedStocks?.join(', ')}\nSélectionnez un autre post :`,
+                content: `Posts déjà sélectionnés : ${selectedStocks}\nSélectionnez un autre post :`,
                 components: [row, buttonRow]
             });
     
@@ -394,19 +406,26 @@ export class CourseInteractionsHandler {
     
     async handleValidateStock(interaction: ButtonInteraction) {
         try {
-            // 1. Récupérer les stocks sélectionnés
-            const selectedStocks = this.getUserStocks(interaction.user.id);
-            
-            logger.debug({ selectedStocks }, 'Stocks sélectionnés pour création');
-    
-            // 2. Récupérer le channel du forum
+            const userData = this.courseData.get(interaction.user.id);
+            if (!userData) {
+                await interaction.reply({
+                    content: '❌ Une erreur est survenue.',
+                    ephemeral: true
+                });
+                return;
+            }
+
+            const selectedStocks = userData.selectedStocks || [];
+
             const forumChannel = await this.getForumChannel(interaction);
+            if (forumChannel) {
+                await this.createStockThreads(forumChannel, selectedStocks);
+            }
+
+            const message = selectedStocks.length > 0 
+                ? `✅ ${selectedStocks.length} posts créés avec succès dans le forum !`
+                : '✅ Formation créée avec succès (aucun post ajouté)';
     
-            // 3. Créer les threads pour chaque stock
-            await this.createStockThreads(forumChannel, selectedStocks);
-    
-            // 4. Envoyer le message de confirmation
-            const message = this.getCompletionMessage(selectedStocks.length);
             await interaction.update({
                 content: message,
                 components: []
@@ -420,8 +439,6 @@ export class CourseInteractionsHandler {
             });
         }
     }
-
-
 
     async handleDeleteCourseSelect(interaction: StringSelectMenuInteraction) {
         try {
