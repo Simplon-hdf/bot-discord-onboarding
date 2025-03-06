@@ -29,6 +29,7 @@ export class CourseInteractionsHandler {
                 channel.name.toLowerCase() === courseName.toLowerCase() && 
                 channel.type === ChannelType.GuildForum
         );
+
     
         if (existingChannel) {
             await interaction.reply({
@@ -37,13 +38,35 @@ export class CourseInteractionsHandler {
             });
             return false;
         }
+
+        if (courseName.length < 3) {
+            logger.warn({
+                courseName: courseName,
+                length: courseName.length,
+                error: 'course_name_too_short'
+            }, '❌ Nom de formation trop court');
+            return false;
+        }
+    
+        if (courseName.length > 50) {
+            logger.warn({
+                courseName: courseName,
+                length: courseName.length,
+                error: 'course_name_too_long'
+            }, '❌ Nom de formation trop long');
+            return false;
+        }
+
         return true;
     }
 
     async handleModalSubmit(interaction: ModalSubmitInteraction) {
         if (interaction.customId === 'create-course-modal-from-slash') {            
             try {
-                const courseName = interaction.fields.getTextInputValue('courseName');
+                const courseName = interaction.fields
+                .getTextInputValue('courseName')
+                .toLowerCase()
+                .replace(/\s+/g, '-');
 
                 if(!await this.validateCourseName(interaction, courseName)) {
                     return;
