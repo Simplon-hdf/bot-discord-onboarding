@@ -15,7 +15,11 @@ async function checkUserPermissions(interaction: CommandInteraction): Promise<bo
     const member = interaction.member as GuildMember;
     
     if (!member) {
-        logger.error('Membre non trouvé');
+        logger.error('❌ Membre non trouvé');
+        await interaction.reply({
+            content: '❌ Membre non trouvé',
+            ephemeral: true
+        });
         return false;
     }
 
@@ -25,7 +29,7 @@ async function checkUserPermissions(interaction: CommandInteraction): Promise<bo
 
     if (!hasRequiredRole) {
         await interaction.reply({
-            content: '❌ Vous devez être Administrateur, Directeur ou CDP pour créer une formation.',
+            content: '❌ Vous n\'avez pas les permissions nécessaires pour créer une formation.',
             ephemeral: true
         });
         
@@ -46,7 +50,12 @@ export const data = new SlashCommandBuilder()
     .setDescription('Créer une nouvelle formation');
 
 export async function execute(interaction: CommandInteraction) {    
-    try {        
+    try {   
+        const authorized = await checkUserPermissions(interaction);
+        if (!authorized) {
+            return;
+        }
+        
         const guild = interaction.guild;
         if (!guild) {
             throw new Error('Guild not found');
@@ -73,7 +82,7 @@ export async function execute(interaction: CommandInteraction) {
         return await interaction.showModal(modal);
 
     } catch (error) {
-        logger.error(error, 'Erreur lors de la création du modal de formation');
+        logger.error(error, '❌ Erreur lors de la création de la modale de formation');
         await interaction.reply({
             content: '❌ Une erreur est survenue lors de la création du formulaire.',
             ephemeral: true
