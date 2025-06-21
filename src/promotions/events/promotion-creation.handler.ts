@@ -32,8 +32,8 @@ export class PromotionCreationHandler {
     private states: Map<string, PromotionCreationState>;
     private client: Client;
     private readonly TEMPLATE_CATEGORY_ID = '1344811915301490748';
-    private readonly GENERIC_POSTS_FORUM_ID = '1345723751039369256';
-    private readonly SPECIFIC_POSTS_FORUM_ID = '1345724142011547669';
+    private readonly GENERIC_POSTS_FORUM_ID = '1347604245972779139';
+    private readonly SPECIFIC_POSTS_FORUM_ID = '1347604413728030821';
     private readonly ITEMS_PER_PAGE = 20;
 
     constructor(client: Client) {

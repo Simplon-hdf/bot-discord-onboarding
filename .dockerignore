@@ -1,0 +1,78 @@
+# Dépendances
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Fichiers de build
+dist/
+build/
+*.tsbuildinfo
+
+# Fichiers d'environnement (sécurité)
+.env*
+!.env.example
+
+# Fichiers de développement
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Fichiers temporaires
+tmp/
+temp/
+
+# Tests
+coverage/
+.nyc_output/
+test/
+tests/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Contrôle de version
+.git/
+.gitignore
+.gitattributes
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Dockerfile de développement
+Dockerfile.dev
+docker-compose*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Fichiers spécifiques à l'application
+dist
+coverage
+.git
+.env
+.env.*
+*.md
+.prettierrc
+.eslintrc*
+docker-compose*
+Dockerfile*
+.dockerignore
+logs
+*.log 

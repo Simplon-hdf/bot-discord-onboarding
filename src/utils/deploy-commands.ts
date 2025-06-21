@@ -7,14 +7,11 @@ import { data as modifyCampusCommand } from '../campuses/commands/modify-campus.
 import { data as deleteCampusCommand } from '../campuses/commands/delete-campus.command';
 import { data as showCampusFormCommand } from '../campuses/commands/show-campus-form.command';
 import { data as setupIdentificationCommand } from '../identification_requests/commands/setupIdentificationButton';
-import { data as addPostCommand } from '../channels/commands/create-stock-post.command';
-import { data as listPostsCommand } from '../channels/commands/list-stock-posts.command';
-import { data as updatePostCommand } from '../channels/commands/modify-stock-channel.command';
-import { data as deletePostCommand } from '../channels/commands/delete-stock-post.command';
 import { data as createCourseCommand } from '../courses/commands/create-course.command';
 import { data as deleteCourseCommand } from '../courses/commands/delete-course.command';
 import { data as showCourseFormCommand } from '../courses/commands/show-course-form.command';
 import { data as createPromoCommand } from '../promotions/commands/create-promo.command';
+import { data as stockManagementFormCommand } from '../channels/commands/stock-management.command';
 
 dotenv.config();
 
@@ -33,10 +30,7 @@ const commands = [
     showCampusFormCommand.toJSON(),
     createPromoCommand.toJSON(),
     setupIdentificationCommand.toJSON(),
-    addPostCommand.toJSON(),
-    listPostsCommand.toJSON(),
-    updatePostCommand.toJSON(),
-    deletePostCommand.toJSON(),
+    stockManagementFormCommand.toJSON(),
     createCourseCommand.toJSON(),
     deleteCourseCommand.toJSON(),
     showCourseFormCommand.toJSON(),
@@ -60,5 +54,3 @@ async function deployCommands() {
 }
 
 deployCommands();
-
-

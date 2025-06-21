@@ -1,0 +1,24 @@
+FROM node:22-alpine
+
+# Créer l'utilisateur app-user
+RUN addgroup -S app-user && adduser -S app-user -G app-user
+
+WORKDIR /app
+
+# Copier les fichiers de package
+COPY package*.json ./
+
+# Installer les dépendances
+RUN npm install
+
+# Changer la propriété du dossier
+RUN chown -R app-user:app-user /app
+
+# Passer à l'utilisateur non-root
+USER app-user
+
+# Copier le code source
+COPY --chown=app-user:app-user . .
+
+# Démarrer en mode développement avec nodemon
+CMD ["npm", "run", "dev"] 

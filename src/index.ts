@@ -2,10 +2,16 @@ import { Client, GatewayIntentBits, Events, MessageFlags } from 'discord.js';
 import dotenv from 'dotenv';
 import { logger } from './config/logger';
 import { InteractionHandler } from './handlers/interaction.handler';
+import { authService } from './services/auth.service';
+
+import { initializeEnvironment } from './config/env-validator';
 
 dotenv.config();
 
 logger.info('🚀 Démarrage du bot...');
+
+// Validation sécurisée de l'environnement
+const envConfig = initializeEnvironment();
 
 const client = new Client({
     intents: [
@@ -18,27 +24,20 @@ const client = new Client({
     ]
 });
 
-// Vérification des variables d'environnement requises
-const requiredEnvVars = {
-    'BOT_TOKEN': process.env.BOT_TOKEN,
-    'CLIENT_ID': process.env.CLIENT_ID,
-    'GUILD_ID': process.env.GUILD_ID
-};
-
-const missingEnvVars = Object.entries(requiredEnvVars)
-    .filter(([_, value]) => !value)
-    .map(([key]) => key);
-
-if (missingEnvVars.length > 0) {
-    logger.fatal(`❌ Variables d'environnement manquantes : ${missingEnvVars.join(', ')}`);
-    logger.fatal('Veuillez vérifier votre fichier .env');
-    process.exit(1);
-}
-
 const interactionHandler = new InteractionHandler(client);
 
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
     logger.info(`✅ Bot connecté en tant que ${readyClient.user.tag}`);
+    
+    // Initialiser l'authentification avec l'API
+    try {
+        logger.info('🔐 Initialisation de l\'authentification avec l\'API...');
+        await authService.getValidToken();
+        logger.info('✅ Authentification API initialisée avec succès');
+    } catch (error) {
+        logger.error(error, '❌ Erreur lors de l\'initialisation de l\'authentification API');
+        logger.warn('⚠️ Le bot fonctionnera mais sans accès à l\'API');
+    }
 });
 
 // Gestion des interactions
@@ -81,7 +80,7 @@ client.on(Events.Error, (error) => {
     logger.error(error, 'Une erreur est survenue avec le client Discord');
 });
 
-client.login(process.env.BOT_TOKEN)
+client.login(envConfig.botToken)
     .catch((error) => {
         logger.fatal(error, 'Impossible de connecter le bot');
         process.exit(1);

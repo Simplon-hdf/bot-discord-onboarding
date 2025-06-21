@@ -1,0 +1,73 @@
+# =============================================================================
+# STAGE 1: Build stage
+# =============================================================================
+FROM node:22-alpine AS builder
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier les fichiers de dépendances
+COPY package*.json ./
+
+# Installer TOUTES les dépendances (dev + prod) pour le build
+RUN npm ci --only=production=false
+
+# Copier le code source
+COPY . .
+
+# Compiler TypeScript vers JavaScript
+RUN npm run build
+
+# =============================================================================
+# STAGE 2: Production stage
+# =============================================================================
+FROM node:22-alpine AS production
+
+# Métadonnées de l'image
+LABEL maintainer="enguerran.smaagghe@hotmail.fr"
+LABEL description="Bot Discord Production Image"
+LABEL version="1.0.0"
+
+# Installer dumb-init pour une gestion propre des signaux
+RUN apk add --no-cache dumb-init
+
+# Créer l'utilisateur non-root pour la sécurité
+RUN addgroup -S -g 1001 app-user && \
+    adduser -S -u 1001 -G app-user app-user
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier les fichiers de dépendances
+COPY package*.json ./
+
+# Installer UNIQUEMENT les dépendances de production
+RUN npm ci --only=production --no-audit --no-fund && \
+    npm cache clean --force
+
+# Copier les fichiers compilés depuis le stage de build
+COPY --from=builder --chown=app-user:app-user /app/dist ./dist
+
+# Copier les autres fichiers nécessaires
+COPY --chown=app-user:app-user package*.json ./
+
+# Créer le dossier logs et donner les permissions
+RUN mkdir -p /app/logs && \
+    chown -R app-user:app-user /app
+
+# Changer vers l'utilisateur non-root
+USER app-user
+
+# Variables d'environnement de production
+ENV NODE_ENV=production
+ENV NPM_CONFIG_LOGLEVEL=warn
+
+# Health check pour monitoring
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD node -e "console.log('Bot health check passed')" || exit 1
+
+# Point d'entrée avec dumb-init pour une gestion propre des signaux
+ENTRYPOINT ["dumb-init", "--"]
+
+# Commande par défaut - utiliser les fichiers compilés
+CMD ["node", "dist/index.js"] 

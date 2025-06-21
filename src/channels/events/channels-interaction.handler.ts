@@ -1,145 +1,198 @@
 import {
-  Client,
+  ButtonInteraction,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
+  Client,
   Guild,
   MessageFlags,
-  StringSelectMenuInteraction,
-  TextInputBuilder,
-  ModalBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
+  GuildMember,
 } from "discord.js";
-import { ChannelService } from "../services/channels-service";
 import { logger } from "../../config/logger";
+import { ChannelService } from "../services/channels-service";
+import { StockChannelCreator } from "../managers/channels-managers/stock-channel-creator";
+import { StockChannelModifier } from "../managers/channels-managers/stock-channel-modifier";
+import { StockChannelDeleter } from "../managers/channels-managers/stock-channel-deleter";
+import { PermissionService } from "../../common/services/permission.service";
+import { InteractionResponseUtil } from "../../common/utils/interaction-response.util";
 
-export class ChannelInteractionHandler {
-  private channelService: ChannelService;
+type ChannelInteraction = ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
+
+export class StockManagementHandler {
+  private readonly channelService: ChannelService;
+  private readonly stockChannelCreator: StockChannelCreator;
+  private readonly stockChannelModifier: StockChannelModifier;
+  private readonly stockChannelDeleter: StockChannelDeleter;
+  private readonly userSelections = new Map<string, string>();
 
   constructor(client: Client, guild: Guild) {
     this.channelService = new ChannelService(client, guild);
+    this.stockChannelCreator = new StockChannelCreator(this.channelService);
+    this.stockChannelModifier = new StockChannelModifier(this.channelService);
+    this.stockChannelDeleter = new StockChannelDeleter(this.channelService);
   }
 
   /**
-   * Gère la soumission du formulaire de création de channel.
+   * Vérifie les permissions et envoie une réponse en cas d'échec
    */
-  async handleModalSubmit(interaction: ModalSubmitInteraction) {
-    if (interaction.customId === "create-stock-post") {
-        try {
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            logger.info("✅ Interaction différée avec succès");
-
-            const name = interaction.fields.getTextInputValue("name");
-            const type = interaction.fields.getTextInputValue("type");
-            const position = parseInt(interaction.fields.getTextInputValue("position"));
-
-            logger.info(`📥 Données récupérées : name=${name}, type=${type}, position=${position}`);
-
-            if (type !== "text" && type !== "voice") {
-                await interaction.editReply({
-                    content: "❌ Le type doit être 'text' ou 'voice'.",
-                });
-                return;
-            }
-
-            if (isNaN(position) || position < 0) {
-                await interaction.editReply({
-                    content: "❌ La position doit être un nombre positif.",
-                });
-                return;
-            }
-
-            const newChannel = await this.channelService.createDiscordChannel(name, type, position);
-            logger.info(`✅ Channel créé : ${newChannel.id}`);
-
-            await interaction.editReply({ content: `✅ Channel "${name}" créé avec succès !` });
-
-        } catch (error) {
-            logger.error("❌ Erreur lors de la création du channel :", error);
-            if (!interaction.replied) {
-                await interaction.editReply({
-                    content: "❌ Une erreur est survenue lors de la création du channel.",
-                });
-            }
-        }
-    }
-    if (interaction.customId.startsWith("update-stock-post-")) {
-        try {
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  private async checkPermissionsAndRespond(interaction: ChannelInteraction): Promise<boolean> {
+    const member = interaction.member as GuildMember;
+    const permissionResult = PermissionService.checkChannelManagementPermissions(member);
     
-            const channelId = interaction.customId.replace("update-stock-post-", ""); // ✅ Récupère l'ID du channel
-    
-            const name = interaction.fields.getTextInputValue("name");
-            const position = parseInt(interaction.fields.getTextInputValue("position"));
-    
-            logger.info(`🔹 Mise à jour du channel ${channelId} | Nouveau nom: ${name} | Position: ${position}`);
-    
-            await this.channelService.updateDiscordChannel(channelId, { name, channelPosition: position });
-            await interaction.editReply({ content: `✅ Channel "${name}" mis à jour avec succès !` });
-    
-        } catch (error) {
-            logger.error("❌ Erreur lors de la mise à jour du channel :", error);
-            if (!interaction.replied) {
-                await interaction.editReply({ content: "❌ Une erreur est survenue lors de la mise à jour du channel." });
-            }
-        }
+    if (!permissionResult.hasPermission) {
+      await InteractionResponseUtil.sendPermissionDeniedResponse(interaction);
+      return false;
     }
     
+    return true;
   }
-  async handleSelectMenu(interaction: StringSelectMenuInteraction) {
-    if (interaction.customId === 'select-stock-channel-delete') {
-        try {
-          const channelId = interaction.values[0]; // ID du channel sélectionné
-          logger.info(`🗑️ Channel sélectionné pour suppression : ${channelId}`);
-    
-          const channelService = new ChannelService(interaction.client, interaction.guild!);
-          
-          // ✅ Suppression du channel
-          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-          await channelService.deleteDiscordChannel(channelId);
-          
-          await interaction.editReply({ content: `✅ Channel supprimé avec succès !` });
-    
-        } catch (error) {
-          logger.error("❌ Erreur lors de la suppression du channel :", error);
-          await interaction.editReply({ content: "❌ Une erreur est survenue lors de la suppression du channel." });
-        }
+
+  /**
+   * Gère les interactions des boutons du formulaire de gestion.
+   */
+  private async handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
+    const buttonHandlers: Record<string, () => Promise<void>> = {
+      "show-create-modal": async () => {
+        logger.debug(`🛠️ Appel de showCreateChannelModal() pour ${interaction.user.tag}`);
+        await this.stockChannelCreator.showCreateChannelModal(interaction);
+        logger.debug(`✅ showCreateChannelModal() exécuté avec succès`);
+      },
+      "show-modify-channel": async () => {
+        await this.stockChannelModifier.showModifyChannelSelection(interaction);
+      },
+      "show-delete-channel": async () => {
+        await this.stockChannelDeleter.showDeleteChannelSelection(interaction);
       }
-    if (interaction.customId === 'select-stock-channel') {
-        try {
-            const channelId = interaction.values[0]; // ID du channel sélectionné
-            logger.info(`🔹 Channel sélectionné : ${channelId}`);
+    };
 
-            // 🔹 Afficher un modal de mise à jour pour ce channel
-            const modal = new ModalBuilder()
-                .setCustomId(`update-stock-post-${channelId}`)
-                .setTitle("Mettre à jour le channel");
-
-            const nameInput = new TextInputBuilder()
-                .setCustomId("name")
-                .setLabel("Nouveau nom du channel")
-                .setStyle(TextInputStyle.Short)
-                .setPlaceholder("Entrez le nom du channel")
-                .setRequired(false);
-
-            const positionInput = new TextInputBuilder()
-                .setCustomId("position")
-                .setLabel("Nouvelle position")
-                .setStyle(TextInputStyle.Short)
-                .setPlaceholder("Entrez un nombre")
-                .setRequired(false);
-
-            modal.addComponents(
-                new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
-                new ActionRowBuilder<TextInputBuilder>().addComponents(positionInput)
-            );
-
-            await interaction.showModal(modal);
-            logger.info("✅ Modal de mise à jour affiché !");
-        } catch (error) {
-            logger.error("❌ Erreur lors de la sélection du channel :", error);
-            await interaction.reply({ content: "❌ Une erreur est survenue.", flags: MessageFlags.Ephemeral });
-        }
+    const handler = buttonHandlers[interaction.customId];
+    if (handler) {
+      await handler();
+    } else {
+      logger.warn(`⚠️ Bouton non géré : ${interaction.customId}`);
     }
-}
+  }
 
+  /**
+   * Gère les interactions du menu déroulant
+   */
+  private async handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+    logger.debug(`📌 Début de handleSelectMenu → ID: ${interaction.customId}`);
+
+    await interaction.deferUpdate(); // Prévention de "Unknown Interaction"
+
+    const selection = interaction.values[0];
+    this.userSelections.set(interaction.user.id, selection);
+
+    logger.debug(`✅ Sélection enregistrée: ${selection} pour ${interaction.user.tag}`);
+
+    await interaction.followUp({
+      content: `✅ Tu as sélectionné **${selection.replace("forum-", "Forum ")}**. Choisis une action !`,
+      ephemeral: true,
+    });
+
+    logger.debug(`✅ Réponse envoyée avec succès`);
+  }
+
+  /**
+   * Gère les soumissions de modal
+   */
+  private async handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+    const modalHandlers: Record<string, () => Promise<void>> = {
+      "create-stock-post": async () => {
+        await this.stockChannelCreator.handleCreateStockPost(interaction);
+      }
+    };
+
+    // Gestion des modals avec préfixes
+    if (interaction.customId.startsWith("update-stock-post-")) {
+      await this.stockChannelModifier.handleModifyModalSubmit(interaction);
+      return;
+    }
+
+    const handler = modalHandlers[interaction.customId];
+    if (handler) {
+      await handler();
+    } else {
+      logger.warn(`⚠️ Modal non géré : ${interaction.customId}`);
+    }
+  }
+
+  /**
+   * Gère les interactions de menu déroulant spécialisés
+   */
+  private async handleSpecializedSelectMenus(interaction: StringSelectMenuInteraction): Promise<void> {
+    const selectMenuHandlers: Record<string, () => Promise<void>> = {
+      "select-management-target": async () => {
+        await this.handleSelectMenu(interaction);
+      },
+      "select-stock-channel-update": async () => {
+        await this.stockChannelModifier.handleSelectMenu(interaction);
+      },
+      "select-stock-channel-delete": async () => {
+        await this.stockChannelDeleter.handleDeleteChannelSelection(interaction);
+      }
+    };
+
+    const handler = selectMenuHandlers[interaction.customId];
+    if (handler) {
+      await handler();
+    } else {
+      logger.warn(`⚠️ Menu déroulant non géré : ${interaction.customId}`);
+    }
+  }
+
+  /**
+   * Gère l'interaction principale pour le stock-management-form.
+   */
+  async handleInteraction(interaction: ChannelInteraction): Promise<void> {
+    try {
+      logger.info({
+        customId: interaction.customId,
+        userId: interaction.user.id,
+        username: interaction.user.username,
+        interactionType: interaction.type
+      }, 'Interaction détectée');
+
+      // Vérification globale des permissions (sauf pour certains menus qui ont leur propre logique)
+      const skipPermissionCheck = [
+        "select-stock-channel-update", 
+        "select-stock-channel-delete"
+      ].includes(interaction.customId);
+
+      if (!skipPermissionCheck && !await this.checkPermissionsAndRespond(interaction)) {
+        return;
+      }
+
+      if (interaction.isButton()) {
+        logger.debug(`🔘 Bouton détecté: ${interaction.customId}`);
+        await this.handleButtonInteraction(interaction);
+        return;
+      }
+
+      if (interaction.isModalSubmit()) {
+        logger.debug(`📝 Modal soumis: ${interaction.customId}`);
+        await this.handleModalSubmit(interaction);
+        return;
+      }
+
+      if (interaction.isStringSelectMenu()) {
+        logger.debug(`📌 Menu déroulant détecté: ${interaction.customId}`);
+        await this.handleSpecializedSelectMenus(interaction);
+        return;
+      }
+
+      // Cette ligne ne devrait jamais être atteinte
+      logger.warn(`⚠️ Type d'interaction non géré`);
+
+    } catch (error) {
+      logger.error({
+        userId: interaction.user.id,
+        username: interaction.user.username,
+        interactionType: interaction.type,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }, "❌ Erreur dans handleInteraction()");
+
+      await InteractionResponseUtil.sendErrorResponse(interaction);
+    }
+  }
 }
