@@ -1,5 +1,6 @@
 import { ChannelType, Client, Guild, GuildChannel } from 'discord.js';
 import { logger } from '../../config/logger';
+import { authService } from '../../services/auth.service';
 
 interface GuildData {
     uuid: string;
@@ -61,14 +62,14 @@ export class CourseService {
 
     private async ensureGuild(): Promise<void> {
             try {
+                const headers = await authService.getAuthHeaders();
+
                 const response = await fetch(`${this.apiUrl}/guilds/${this.SIMPLON_GUILD.uuid}`);
                 
                 if (!response.ok) {
                     const createResponse = await fetch(`${this.apiUrl}/guilds`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers,
                         body: JSON.stringify(this.SIMPLON_GUILD),
                     });
     
@@ -86,6 +87,8 @@ export class CourseService {
 
     private async ensureTemplateCategory(): Promise<void> {
         try {
+            const headers = await authService.getAuthHeaders();
+
             logger.debug({
                 categoryData: this.TEMPLATE_CATEGORY,
                 endpoint: `${this.apiUrl}/categories/${this.TEMPLATE_CATEGORY.uuid}`
@@ -97,9 +100,7 @@ export class CourseService {
             if (!response.ok || !categoryData || !categoryData.uuid) {
                 const createResponse = await fetch(`${this.apiUrl}/categories`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers,
                     body: JSON.stringify(this.TEMPLATE_CATEGORY),
                 });
 
@@ -143,6 +144,7 @@ export class CourseService {
         try {
             await this.ensureGuild();
             await this.ensureTemplateCategory();
+            const headers = await authService.getAuthHeaders();
 
             const guildId = process.env.GUILD_ID;
             if (!guildId) {
@@ -188,9 +190,7 @@ export class CourseService {
 
             const roleResponse = await fetch(`${this.apiUrl}/roles`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify({
                     name: role.name,
                     uuidGuild: guildId,
@@ -222,9 +222,7 @@ export class CourseService {
 
             const response = await fetch(`${this.apiUrl}/courses`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify(courseData),
             });
 
