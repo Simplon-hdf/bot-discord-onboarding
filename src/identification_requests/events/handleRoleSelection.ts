@@ -11,9 +11,10 @@ export async function execute(interaction: Interaction) {
         const userId = interaction.customId.replace('role-select-', '');
 
         // Message RGPD
-        const rgpdMessage = `**Protection de vos données personnelles**
-
-En poursuivant votre inscription, vous acceptez que vos données personnelles soient collectées et traitées par notre service. Ces données sont nécessaires pour :
+        const rgpdMessage = `**Consentement RGPD**
+Conformément au RGPD,
+vous êtes informé que, en validant ci-dessous, vous consentez au traitement de vos données personnelles dans le cadre de ce serveur Discord.
+Ces traitements sont nécessaires notamment pour :
 • Gérer votre identification sur le serveur Discord
 • Vous attribuer les rôles et accès appropriés
 • Vous contacter en cas de besoin
@@ -24,15 +25,17 @@ Vos droits :
 • Limitation du traitement
 • Opposition au traitement
 • Portabilité de vos données
+• Au besoin, introduire une réclamation auprès de la CNIL (www.cnil.fr).
 
-Pour exercer ces droits ou pour toute question, contactez notre équipe de modération.
+Pour exercer ces droits ou pour toute question, contactez notre DPO.
+[adresse e-mail du DPO]
 
-Pour continuer, vous devez accepter ces conditions.`;
+Sans ce consentement, vous ne pourrez pas poursuivre l’inscription.`;
 
         // Création du bouton d'acceptation
         const acceptButton = new ButtonBuilder()
             .setCustomId(`rgpd-accept-${selectedRole}-${userId}`)
-            .setLabel('J\'accepte les conditions')
+            .setLabel('J\'accepte ce consentement RGPD')
             .setStyle(ButtonStyle.Success);
 
         const row = new ActionRowBuilder<ButtonBuilder>()
